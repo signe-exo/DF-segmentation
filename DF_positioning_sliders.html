@@ -35,6 +35,11 @@
     display: inline-flex; align-items: center; gap: 6px;
     padding: 4px 8px 4px 6px; background: #f5f5f5; border: 1px solid #e0e0e0;
     border-radius: 16px; font-size: 12px;
+    transition: opacity 0.15s;
+  }
+  .entity-chip.hidden { opacity: 0.45; background: #ececec; }
+  .entity-chip input.visible-toggle {
+    margin: 0 2px 0 0; cursor: pointer;
   }
   .entity-chip .swatch {
     width: 12px; height: 12px; border-radius: 50%;
@@ -96,31 +101,33 @@
 </div>
 
 <script>
-// ----- Variables (the 6 spectrums) -----
+// ----- Variables (the 10 spectrums) -----
 const variables = [
-  { id: 'compliance',    title: 'Compliance',                       desc: 'Patient adherence to wearing protocol',          left: 'Low',         right: 'High' },
-  { id: 'offloading',    title: 'Off-loading',                      desc: 'Pressure relief on wound / deformity',           left: 'Minimal',     right: 'Maximum' },
-  { id: 'time',          title: 'Time consumption (HCP)',           desc: 'Clinician time to fit, adjust, follow-up',       left: 'Quick',       right: 'Time-intensive' },
-  { id: 'adjustability', title: 'Adjustability — fit to deformity', desc: 'Range of anatomies the device can accommodate',  left: 'Generic fit', right: 'Patient-specific' },
-  { id: 'mobility',      title: 'Mobility',                         desc: "Patient's ability to move while using device",   left: 'Restricted',  right: 'Full mobility' },
-  { id: 'cost',          title: 'Cost',                             desc: 'Total cost: device + clinician time + follow-up', left: 'Low',        right: 'High' }
+  { id: 'compliance',    title: 'Compliance',                       desc: 'Patient adherence to wearing protocol',           left: 'Low',           right: 'High' },
+  { id: 'offloading',    title: 'Off-loading',                      desc: 'Pressure relief on wound / deformity',            left: 'Minimal',       right: 'Maximum' },
+  { id: 'time',          title: 'Time consumption (HCP)',           desc: 'Clinician time to fit, adjust, follow-up',        left: 'Quick',         right: 'Time-intensive' },
+  { id: 'time_patient',  title: 'Time consumption (patient)',       desc: 'Patient effort to remove/apply, maintain, ',      left: 'Quick',         right: 'Time-intensive' },
+  { id: 'adjustability', title: 'Adjustability — fit to deformity', desc: 'Range of anatomies the device can accommodate',   left: 'Generic fit',   right: 'Patient-specific' },
+  { id: 'stability',     title: 'Stability',                        desc: 'Solidity / wobble of the device when worn',       left: 'Unstable',      right: 'Very stable' },
+  { id: 'mobility',      title: 'Mobility',                         desc: "Patient's ability to move while using device",    left: 'Restricted',    right: 'Full mobility' },
+  { id: 'comfort',       title: 'Comfort',                          desc: 'Patient-perceived comfort during wear',           left: 'Uncomfortable', right: 'Very comfortable' },
+  { id: 'weight',        title: 'Weight',                           desc: 'Physical weight of the device',                   left: 'Light',         right: 'Heavy' },
+  { id: 'size',          title: 'Size',                             desc: 'Physical size of the device',                     left: 'Slim',          right: 'Wide' },
+  { id: 'cost',          title: 'Cost',                             desc: 'Price of device',                                 left: 'Low',           right: 'High' }
 ];
 
-// ----- Default entities (DF + common DFU offloading comparators) -----
-// Positions are starting estimates — drag to refine based on your research.
+// ----- Default entities (snapshot from Signe's session) -----
+// Starting positions for new variables (stability, time_patient, weight, comfort) are estimates — drag to refine.
 const defaultEntities = [
-  { id: 'df',     name: 'DF (target)',          color: '#E63946', positions: { compliance: 75, offloading: 80, time: 30, adjustability: 80, mobility: 70, cost: 35 } },
-  { id: 'tcc',    name: 'TCC',                  color: '#1D3557', positions: { compliance: 30, offloading: 95, time: 85, adjustability: 50, mobility: 25, cost: 70 } },
-  { id: 'rcw',    name: 'RCW (CAM walker)',     color: '#2A9D8F', positions: { compliance: 60, offloading: 75, time: 30, adjustability: 40, mobility: 60, cost: 40 } },
-  { id: 'itcc',   name: 'iTCC',                 color: '#118AB2', positions: { compliance: 80, offloading: 80, time: 50, adjustability: 40, mobility: 50, cost: 45 } },
-  { id: 'felted', name: 'Felted foam',          color: '#F4A261', positions: { compliance: 50, offloading: 35, time: 25, adjustability: 60, mobility: 75, cost: 10 } },
-  { id: 'ortho',  name: 'Custom ortho. shoe',   color: '#6A4C93', positions: { compliance: 70, offloading: 50, time: 70, adjustability: 90, mobility: 80, cost: 75 } },
-  { id: 'half',   name: 'Half shoe',            color: '#E76F51', positions: { compliance: 35, offloading: 60, time: 25, adjustability: 25, mobility: 50, cost: 25 } },
-  { id: 'crow',   name: 'CROW boot',            color: '#073B4C', positions: { compliance: 55, offloading: 85, time: 75, adjustability: 70, mobility: 35, cost: 80 } }
+  { id: 'df',     name: 'DF (target)', color: '#E63946', positions: { compliance: 73.4, offloading: 78.1, time: 24.2, time_patient: 30, adjustability: 65.8, stability: 75, mobility: 58.6, comfort: 80, weight: 35, cost: 45.9 } },
+  { id: 'tcc',    name: 'TCC',         color: '#1D3557', positions: { compliance: 30,   offloading: 95,   time: 85,   time_patient: 95, adjustability: 96.5, stability: 90, mobility: 4.7,  comfort: 20, weight: 75, cost: 5.3 } },
+  { id: 'rcw',    name: 'Aircast',     color: '#2A9D8F', positions: { compliance: 60,   offloading: 43.8, time: 38.3, time_patient: 50, adjustability: 37.3, stability: 70, mobility: 34.8, comfort: 50, weight: 65, cost: 52.4 } },
+  { id: 'itcc',   name: 'VacoPED',     color: '#118AB2', positions: { compliance: 80,   offloading: 72.6, time: 15.5, time_patient: 60, adjustability: 51.6, stability: 75, mobility: 52.4, comfort: 55, weight: 60, cost: 58.5 } },
+  { id: 'felted', name: 'Sandal',      color: '#F4A261', positions: { compliance: 93.1, offloading: 6.4,  time: 34.1, time_patient: 15, adjustability: 28.8, stability: 25, mobility: 66.3, comfort: 60, weight: 15, cost: 39.6 } }
 ];
 
 // ----- State (persisted) -----
-const STORAGE_KEY = 'df_positioning_state_v2';
+const STORAGE_KEY = 'df_positioning_state_v3';
 let entities = loadState();
 
 function loadState() {
@@ -140,14 +147,21 @@ function renderEntities() {
   entitiesEl.innerHTML = '';
   entities.forEach(ent => {
     const chip = document.createElement('div');
-    chip.className = 'entity-chip';
+    chip.className = 'entity-chip' + (ent.hidden ? ' hidden' : '');
     chip.innerHTML = `
+      <input type="checkbox" class="visible-toggle" data-id="${ent.id}" ${ent.hidden ? '' : 'checked'} title="Show on sliders">
       <span class="swatch" style="background:${ent.color}"></span>
       <input class="name" value="${escapeHtml(ent.name)}" data-id="${ent.id}">
       <input type="color" value="${ent.color}" data-id="${ent.id}" class="color" style="width:18px;height:18px;border:none;background:none;cursor:pointer;padding:0">
       ${ent.id !== 'df' ? `<button class="remove" data-id="${ent.id}" title="Remove">×</button>` : ''}
     `;
     entitiesEl.appendChild(chip);
+  });
+  entitiesEl.querySelectorAll('input.visible-toggle').forEach(inp => {
+    inp.addEventListener('change', e => {
+      const ent = entities.find(x => x.id === e.target.dataset.id);
+      if (ent) { ent.hidden = !e.target.checked; saveState(); renderEntities(); renderSpectrums(); }
+    });
   });
   entitiesEl.querySelectorAll('input.name').forEach(inp => {
     inp.addEventListener('input', e => {
@@ -236,8 +250,9 @@ function drawSpectrum(svg, v) {
     svg.appendChild(cap);
   });
 
-  // Markers (one per entity)
+  // Markers (one per entity, skip hidden)
   entities.forEach(ent => {
+    if (ent.hidden) return;
     const pos = (ent.positions && ent.positions[v.id] != null) ? ent.positions[v.id] : 50;
     const x = xL + (pos / 100) * (xR - xL);
 
