@@ -1,0 +1,424 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>DF Market Segmentation — 3D</title>
+<style>
+  :root { color-scheme: light; }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; padding: 0;
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, system-ui, Arial, sans-serif;
+    background: #fafafa; color: #111;
+    overflow: hidden;
+  }
+  #header {
+    position: fixed; top: 0; left: 0; right: 0;
+    padding: 14px 24px; z-index: 10;
+    background: rgba(250,250,250,0.95);
+    border-bottom: 1px solid #e5e5e5;
+  }
+  #header h1 { margin: 0 0 4px 0; font-size: 18px; font-weight: 700; }
+  #header p { margin: 0; font-size: 12px; color: #666; }
+  #scene-container { width: 100vw; height: 100vh; cursor: grab; }
+  #scene-container:active { cursor: grabbing; }
+  #panel {
+    position: fixed; top: 80px; right: 16px; width: 340px;
+    max-height: calc(100vh - 100px);
+    background: white;
+    border: 1px solid #ddd; border-radius: 8px;
+    padding: 18px; overflow-y: auto;
+    box-shadow: 0 4px 16px rgba(0,0,0,0.08);
+    display: none; z-index: 5;
+  }
+  #panel.visible { display: block; }
+  #panel h2 { margin: 0 0 10px 0; font-size: 16px; font-weight: 700; padding-right: 24px; }
+  #panel .axes { font-size: 11px; margin-bottom: 14px; line-height: 1.7; }
+  #panel .axes span {
+    display: inline-block; padding: 3px 8px; border-radius: 12px;
+    margin-right: 4px; margin-bottom: 4px; font-weight: 500;
+  }
+  #panel .axes .x { background: #fde4e1; color: #b22222; }
+  #panel .axes .y { background: #d6f0d6; color: #1e6e1e; }
+  #panel .axes .z { background: #d8e8f8; color: #1e4d8c; }
+  #panel h3 { font-size: 12px; margin: 14px 0 6px 0; color: #444; text-transform: uppercase; letter-spacing: 0.04em; }
+  #panel ul { margin: 0; padding-left: 18px; font-size: 13px; line-height: 1.5; }
+  #panel li { margin-bottom: 4px; }
+  #panel .notes { font-size: 12px; color: #555; line-height: 1.5; font-style: italic; }
+  #close-panel {
+    position: absolute; top: 10px; right: 12px;
+    cursor: pointer; font-size: 22px; color: #999;
+    background: none; border: none; line-height: 1; padding: 0;
+  }
+  #close-panel:hover { color: #333; }
+  #legend {
+    position: fixed; top: 80px; left: 16px;
+    background: rgba(255,255,255,0.95);
+    border: 1px solid #ddd; border-radius: 8px;
+    padding: 12px 14px; font-size: 12px;
+    z-index: 5; max-width: 220px;
+  }
+  #legend h3 { margin: 0 0 8px 0; font-size: 12px; text-transform: uppercase; letter-spacing: 0.04em; color: #444; }
+  #legend .axis-row { display: flex; align-items: center; margin-bottom: 6px; line-height: 1.4; }
+  #legend .axis-dot { width: 10px; height: 10px; border-radius: 50%; margin-right: 8px; flex-shrink: 0; }
+  #legend .x-dot { background: #d62728; }
+  #legend .y-dot { background: #2ca02c; }
+  #legend .z-dot { background: #1f77b4; }
+  #instructions {
+    position: fixed; bottom: 16px; left: 24px;
+    font-size: 11px; color: #666;
+    background: rgba(255,255,255,0.9);
+    padding: 8px 12px; border-radius: 6px;
+    border: 1px solid #ddd;
+  }
+  .axis-label {
+    position: absolute;
+    font-size: 11px; font-weight: 600;
+    padding: 4px 8px;
+    background: rgba(255,255,255,0.92);
+    border: 1px solid #ddd;
+    border-radius: 4px;
+    pointer-events: none;
+    transform: translate(-50%, -50%);
+    white-space: nowrap;
+    z-index: 2;
+  }
+  .axis-label.x { color: #d62728; border-color: #f0a8a4; }
+  .axis-label.y { color: #2ca02c; border-color: #a8d8a8; }
+  .axis-label.z { color: #1f77b4; border-color: #a8c8e8; }
+</style>
+</head>
+<body>
+
+<div id="header">
+  <h1>DF market segmentation — 3D map</h1>
+  <p>Drag to rotate · scroll to zoom. Each octant of the cube represents one of 8 patient segments.</p>
+</div>
+
+<div id="legend">
+  <h3>Axes</h3>
+  <div class="axis-row"><div class="axis-dot x-dot"></div>Cognitive function: Intact ↔ Impaired</div>
+  <div class="axis-row"><div class="axis-dot y-dot"></div>Ambulatory status: Ambulatory ↔ Non-ambulatory</div>
+  <div class="axis-row"><div class="axis-dot z-dot"></div>Intervention frequency: Low ↔ High</div>
+</div>
+
+<div id="scene-container"></div>
+
+<div id="panel">
+  <button id="close-panel">×</button>
+  <h2 id="panel-title">Segment</h2>
+  <div class="axes" id="panel-axes"></div>
+  <h3>Key needs</h3>
+  <ul id="panel-needs"></ul>
+  <h3>Notes</h3>
+  <p class="notes" id="panel-notes"></p>
+</div>
+
+<div id="instructions">Drag: rotate · Scroll: zoom · Click sphere: details</div>
+
+<script src="https://cdn.jsdelivr.net/npm/three@0.128.0/build/three.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+
+<script>
+// ----- Segment data -----
+// Coordinates: X (0=Intact, 1=Impaired), Y (0=Ambulatory, 1=Non-ambulatory), Z (0=Low intervention, 1=High intervention)
+const segments = [
+  {
+    x: 0, y: 0, z: 0,
+    name: "Independent self-manager",
+    color: 0x4c9aff,
+    axes: ["Cognitive: Intact", "Ambulatory", "Low intervention"],
+    needs: [
+      "Self-monitoring tools (compliance reminders, app-based logs)",
+      "Lightweight, low-friction device",
+      "Low-touch HCP follow-up cadence"
+    ],
+    notes: "Likely largest volume, lowest acuity. Strong candidate for at-home/self-service product paths."
+  },
+  {
+    x: 1, y: 0, z: 0,
+    name: "Vulnerable mobile",
+    color: 0xffa726,
+    axes: ["Cognitive: Impaired", "Ambulatory", "Low intervention"],
+    needs: [
+      "Caregiver-assisted compliance (no patient instructions)",
+      "Tamper-resistant fitting",
+      "Visual/tactile feedback over text"
+    ],
+    notes: "Mobility intact but cognitive risk → fall risk + non-compliance. Caregiver is the real user."
+  },
+  {
+    x: 0, y: 1, z: 0,
+    name: "Stable mobility-limited",
+    color: 0x66bb6a,
+    axes: ["Cognitive: Intact", "Non-ambulatory", "Low intervention"],
+    needs: [
+      "Comfort while seated/lying (offloading without weight-bearing)",
+      "Easy to don/doff with limited mobility",
+      "Pressure-redistribution focus"
+    ],
+    notes: "Wheelchair / bedbound but lucid. Often overlooked — different mechanical requirements (no gait)."
+  },
+  {
+    x: 1, y: 1, z: 0,
+    name: "Caregiver-dependent stable",
+    color: 0xab47bc,
+    axes: ["Cognitive: Impaired", "Non-ambulatory", "Low intervention"],
+    needs: [
+      "Caregiver-applied, no patient interaction",
+      "Visible status indicators for non-clinical caregivers",
+      "Long wear cycle without re-fitting"
+    ],
+    notes: "Often nursing home / late-stage care. Decision-makers are caregivers and facility staff."
+  },
+  {
+    x: 0, y: 0, z: 1,
+    name: "Engaged complex",
+    color: 0x42a5f5,
+    axes: ["Cognitive: Intact", "Ambulatory", "High intervention"],
+    needs: [
+      "Frequent HCP visits → fast don/doff for clinic appointments",
+      "Wound-access compatibility (without removing device)",
+      "Patient education on warning signs"
+    ],
+    notes: "Active patient managing a serious wound. High motivation but high logistical burden — time consumption (HCP) is critical."
+  },
+  {
+    x: 1, y: 0, z: 1,
+    name: "High-risk mobile",
+    color: 0xef5350,
+    axes: ["Cognitive: Impaired", "Ambulatory", "High intervention"],
+    needs: [
+      "Wandering risk + non-compliance management",
+      "Caregiver coordination across visits",
+      "Robust against patient self-removal"
+    ],
+    notes: "Highest behavioral risk: wound severity + cognitive impairment + still walking. Often where amputations escalate."
+  },
+  {
+    x: 0, y: 1, z: 1,
+    name: "Complex mobility-limited",
+    color: 0x26a69a,
+    axes: ["Cognitive: Intact", "Non-ambulatory", "High intervention"],
+    needs: [
+      "Wound access for frequent debridement / dressing changes",
+      "Patient can self-report symptoms accurately",
+      "Pressure offloading optimised for static positions"
+    ],
+    notes: "Often post-surgical / rehab patients. Strong fit for clinical-grade device, but smaller volume."
+  },
+  {
+    x: 1, y: 1, z: 1,
+    name: "Highest complexity",
+    color: 0x8d6e63,
+    axes: ["Cognitive: Impaired", "Non-ambulatory", "High intervention"],
+    needs: [
+      "Caregiver/HCP-only operation",
+      "Integration with broader wound care protocol",
+      "Documentation for multidisciplinary team"
+    ],
+    notes: "Hospice / end-stage. Product fit questionable — may be palliative care. Consider deprioritising for early roadmap."
+  }
+];
+
+// ----- Three.js setup -----
+const container = document.getElementById('scene-container');
+const scene = new THREE.Scene();
+scene.background = new THREE.Color(0xfafafa);
+
+const camera = new THREE.PerspectiveCamera(45, window.innerWidth / window.innerHeight, 0.1, 1000);
+camera.position.set(4, 3, 4);
+
+const renderer = new THREE.WebGLRenderer({ antialias: true });
+renderer.setSize(window.innerWidth, window.innerHeight);
+renderer.setPixelRatio(window.devicePixelRatio);
+container.appendChild(renderer.domElement);
+
+const controls = new THREE.OrbitControls(camera, renderer.domElement);
+controls.enableDamping = true;
+controls.dampingFactor = 0.08;
+controls.rotateSpeed = 0.7;
+controls.minDistance = 3;
+controls.maxDistance = 12;
+
+// Lighting
+const ambient = new THREE.AmbientLight(0xffffff, 0.7);
+scene.add(ambient);
+const directional = new THREE.DirectionalLight(0xffffff, 0.5);
+directional.position.set(5, 8, 5);
+scene.add(directional);
+
+// ----- Cube geometry -----
+// Cube goes from (-1,-1,-1) to (1,1,1). Map segment x/y/z (0/1) to (-1/+1).
+const toCoord = v => v === 0 ? -1 : 1;
+
+// Cube edges (wireframe)
+const edgesGeometry = new THREE.EdgesGeometry(new THREE.BoxGeometry(2, 2, 2));
+const edgesMaterial = new THREE.LineBasicMaterial({ color: 0x444444, linewidth: 1 });
+const edges = new THREE.LineSegments(edgesGeometry, edgesMaterial);
+scene.add(edges);
+
+// ----- Intersecting octant planes (x=0, y=0, z=0) -----
+const planeGeometry = new THREE.PlaneGeometry(2, 2);
+
+// XY plane (z=0) — horizontal, green
+const xyPlane = new THREE.Mesh(
+  planeGeometry,
+  new THREE.MeshBasicMaterial({ color: 0x9ed89a, transparent: true, opacity: 0.45, side: THREE.DoubleSide, depthWrite: false })
+);
+scene.add(xyPlane);
+
+// XZ plane (y=0) — teal
+const xzPlane = new THREE.Mesh(
+  planeGeometry,
+  new THREE.MeshBasicMaterial({ color: 0x6dc7c0, transparent: true, opacity: 0.45, side: THREE.DoubleSide, depthWrite: false })
+);
+xzPlane.rotation.x = Math.PI / 2;
+scene.add(xzPlane);
+
+// YZ plane (x=0) — purple
+const yzPlane = new THREE.Mesh(
+  planeGeometry,
+  new THREE.MeshBasicMaterial({ color: 0x9b6bc7, transparent: true, opacity: 0.45, side: THREE.DoubleSide, depthWrite: false })
+);
+yzPlane.rotation.y = Math.PI / 2;
+scene.add(yzPlane);
+
+// Axes — go all the way through the cube (origin → both directions)
+function makeAxis(dir, color, length) {
+  const posArrow = new THREE.ArrowHelper(dir, new THREE.Vector3(0, 0, 0), length, color, 0.18, 0.12);
+  const negArrow = new THREE.ArrowHelper(dir.clone().negate(), new THREE.Vector3(0, 0, 0), length, color, 0.18, 0.12);
+  scene.add(posArrow);
+  scene.add(negArrow);
+}
+makeAxis(new THREE.Vector3(1, 0, 0), 0xd62728, 1.5);
+makeAxis(new THREE.Vector3(0, 1, 0), 0x2ca02c, 1.5);
+makeAxis(new THREE.Vector3(0, 0, 1), 0x1f77b4, 1.5);
+
+// ----- Octant click volumes (invisible hitboxes, highlight on hover) -----
+const octantGroup = new THREE.Group();
+const octantMeshes = [];
+
+segments.forEach((seg, idx) => {
+  const geo = new THREE.BoxGeometry(1, 1, 1);
+  const mat = new THREE.MeshBasicMaterial({
+    color: seg.color,
+    transparent: true,
+    opacity: 0,
+    depthWrite: false
+  });
+  const mesh = new THREE.Mesh(geo, mat);
+  mesh.position.set(toCoord(seg.x) * 0.5, toCoord(seg.y) * 0.5, toCoord(seg.z) * 0.5);
+  mesh.userData.segmentIdx = idx;
+  octantMeshes.push(mesh);
+  octantGroup.add(mesh);
+});
+scene.add(octantGroup);
+
+// ----- Axis labels (HTML overlays at arrow tips) -----
+const axisLabelDefs = [
+  { text: "Cognitive: Intact",       cls: "x", pos: new THREE.Vector3(-1.75, 0, 0) },
+  { text: "Cognitive: Impaired",     cls: "x", pos: new THREE.Vector3( 1.75, 0, 0) },
+  { text: "Ambulatory",              cls: "y", pos: new THREE.Vector3(0, -1.75, 0) },
+  { text: "Non-ambulatory",          cls: "y", pos: new THREE.Vector3(0,  1.75, 0) },
+  { text: "Low intervention",        cls: "z", pos: new THREE.Vector3(0, 0, -1.75) },
+  { text: "High intervention",       cls: "z", pos: new THREE.Vector3(0, 0,  1.75) }
+];
+const axisLabels = axisLabelDefs.map(def => {
+  const div = document.createElement('div');
+  div.className = `axis-label ${def.cls}`;
+  div.textContent = def.text;
+  document.body.appendChild(div);
+  return { def, div };
+});
+
+function updateAxisLabels() {
+  axisLabels.forEach(({ def, div }) => {
+    const proj = def.pos.clone().project(camera);
+    const x = (proj.x * 0.5 + 0.5) * window.innerWidth;
+    const y = (-proj.y * 0.5 + 0.5) * window.innerHeight;
+    div.style.left = `${x}px`;
+    div.style.top = `${y}px`;
+    div.style.opacity = (proj.z < 1) ? 1 : 0;
+  });
+}
+
+// ----- Click handling -----
+const raycaster = new THREE.Raycaster();
+const mouse = new THREE.Vector2();
+let mouseDownPos = null;
+
+renderer.domElement.addEventListener('mousedown', (e) => {
+  mouseDownPos = { x: e.clientX, y: e.clientY };
+});
+
+renderer.domElement.addEventListener('mouseup', (e) => {
+  if (!mouseDownPos) return;
+  const dx = e.clientX - mouseDownPos.x;
+  const dy = e.clientY - mouseDownPos.y;
+  if (Math.sqrt(dx*dx + dy*dy) > 5) { mouseDownPos = null; return; } // was a drag, ignore
+
+  mouse.x = (e.clientX / window.innerWidth) * 2 - 1;
+  mouse.y = -(e.clientY / window.innerHeight) * 2 + 1;
+  raycaster.setFromCamera(mouse, camera);
+  const intersects = raycaster.intersectObjects(octantMeshes);
+  if (intersects.length > 0) {
+    showSegment(intersects[0].object.userData.segmentIdx);
+  }
+  mouseDownPos = null;
+});
+
+// Hover effect — highlight the octant under the cursor
+renderer.domElement.addEventListener('mousemove', (e) => {
+  mouse.x = (e.clientX / window.innerWidth) * 2 - 1;
+  mouse.y = -(e.clientY / window.innerHeight) * 2 + 1;
+  raycaster.setFromCamera(mouse, camera);
+  const intersects = raycaster.intersectObjects(octantMeshes);
+  octantMeshes.forEach(m => { m.material.opacity = 0; });
+  if (intersects.length > 0) {
+    intersects[0].object.material.opacity = 0.35;
+    renderer.domElement.style.cursor = 'pointer';
+  } else {
+    renderer.domElement.style.cursor = '';
+  }
+});
+
+// ----- Panel -----
+const panel = document.getElementById('panel');
+const panelTitle = document.getElementById('panel-title');
+const panelAxes = document.getElementById('panel-axes');
+const panelNeeds = document.getElementById('panel-needs');
+const panelNotes = document.getElementById('panel-notes');
+
+function showSegment(idx) {
+  const seg = segments[idx];
+  panelTitle.textContent = seg.name;
+  panelAxes.innerHTML = `<span class="x">${seg.axes[0]}</span><span class="y">${seg.axes[1]}</span><span class="z">${seg.axes[2]}</span>`;
+  panelNeeds.innerHTML = seg.needs.map(n => `<li>${n}</li>`).join('');
+  panelNotes.textContent = seg.notes;
+  panel.classList.add('visible');
+}
+
+document.getElementById('close-panel').addEventListener('click', () => {
+  panel.classList.remove('visible');
+});
+
+// ----- Resize -----
+window.addEventListener('resize', () => {
+  camera.aspect = window.innerWidth / window.innerHeight;
+  camera.updateProjectionMatrix();
+  renderer.setSize(window.innerWidth, window.innerHeight);
+});
+
+// ----- Render loop -----
+function animate() {
+  requestAnimationFrame(animate);
+  controls.update();
+  updateAxisLabels();
+  renderer.render(scene, camera);
+}
+animate();
+</script>
+
+</body>
+</html>
